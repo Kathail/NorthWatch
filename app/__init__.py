@@ -22,6 +22,13 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        try:
+            db.session.execute(
+                db.text("ALTER TABLE road_conditions ALTER COLUMN highway TYPE VARCHAR(100)")
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     if app.config.get("SCHEDULER_ENABLED"):
         from app.services.scheduler import init_scheduler

@@ -11,7 +11,7 @@ class RoadCondition(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    highway = db.Column(db.String(20), nullable=False)
+    highway = db.Column(db.String(100), nullable=False)
     location_description = db.Column(db.Text, nullable=False)
     condition = db.Column(db.String(100), nullable=False)
     visibility = db.Column(db.String(50), nullable=True)
