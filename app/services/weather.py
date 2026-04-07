@@ -6,7 +6,7 @@ import requests
 from app.extensions import db
 from app.models import FetchLog, WeatherAlert
 
-WEATHER_API_URL = "https://api.weather.gc.ca/collections/alerts/items"
+WEATHER_API_URL = "https://api.weather.gc.ca/collections/weather-alerts/items"
 
 NORTHERN_ONTARIO_KEYWORDS = [
     "sudbury", "timmins", "sault ste. marie", "north bay",
@@ -14,16 +14,24 @@ NORTHERN_ONTARIO_KEYWORDS = [
     "espanola", "elliot lake", "kirkland lake", "temiskaming",
     "nipissing", "algoma", "thunder bay", "kenora",
     "rainy river", "hearst", "wawa", "white river",
-    "marathon", "geraldton",
+    "marathon", "geraldton", "muskoka", "haliburton",
 ]
 
 NORTHERN_RE = re.compile("|".join(NORTHERN_ONTARIO_KEYWORDS), re.IGNORECASE)
 
-SEVERITY_MAP = {
-    "Extreme": "red",
-    "Severe": "red",
-    "Moderate": "orange",
-    "Minor": "yellow",
+ALERT_TYPE_MAP = {
+    "warning": "warning",
+    "watch": "watch",
+    "advisory": "advisory",
+    "statement": "advisory",
+    "ended": "advisory",
+}
+
+SEVERITY_BY_TYPE = {
+    "warning": "red",
+    "watch": "orange",
+    "advisory": "yellow",
+    "statement": "yellow",
 }
 
 
@@ -40,10 +48,9 @@ def fetch_weather_alerts():
     try:
         params = {
             "lang": "en",
-            "type": "warning",
-            "sortby": "-datetime",
             "f": "json",
             "limit": 500,
+            "province": "ON",
         }
         response = requests.get(WEATHER_API_URL, params=params, timeout=15)
         response.raise_for_status()
@@ -61,40 +68,37 @@ def fetch_weather_alerts():
 
     for feature in features:
         props = feature.get("properties", {})
-        title = props.get("headline", props.get("event", ""))
-        area = props.get("area", "")
 
-        if not NORTHERN_RE.search(title) and not NORTHERN_RE.search(area):
+        feature_name = props.get("feature_name_en", "")
+        alert_name = props.get("alert_name_en", "")
+
+        if not NORTHERN_RE.search(feature_name) and not NORTHERN_RE.search(alert_name):
             continue
 
-        alert_type_raw = props.get("type", "alert").lower()
-        if "warning" in alert_type_raw:
-            alert_type = "warning"
-        elif "watch" in alert_type_raw:
-            alert_type = "watch"
-        elif "advisory" in alert_type_raw:
-            alert_type = "advisory"
-        else:
-            alert_type = "warning"
+        raw_type = props.get("alert_type", "warning").lower()
+        alert_type = ALERT_TYPE_MAP.get(raw_type, "warning")
+        severity = SEVERITY_BY_TYPE.get(raw_type, "yellow")
 
-        severity_raw = props.get("severity", "Minor")
-        severity = SEVERITY_MAP.get(severity_raw, "yellow")
-
-        issued_at = parse_datetime(
-            props.get("effective", props.get("sent", ""))
-        )
+        issued_at = parse_datetime(props.get("publication_datetime") or props.get("validity_datetime"))
         if not issued_at:
             issued_at = now
 
+        expires_at = parse_datetime(props.get("expiration_datetime") or props.get("event_end_datetime"))
+
+        title = props.get("alert_short_name_en") or props.get("alert_name_en") or "Weather Alert"
+        description = props.get("alert_text_en")
+        if description and len(description) > 2000:
+            description = description[:2000]
+
         records.append(
             WeatherAlert(
-                region=area or title,
+                region=feature_name or "Ontario",
                 alert_type=alert_type,
                 severity=severity,
-                title=title or props.get("event", "Weather Alert"),
-                description=props.get("description"),
+                title=title,
+                description=description,
                 issued_at=issued_at,
-                expires_at=parse_datetime(props.get("expires", "")),
+                expires_at=expires_at,
                 fetched_at=now,
             )
         )
