@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ app/
 COPY --from=frontend /app/static/dist app/static/dist
-ENV PORT=8080
+COPY start.sh .
+RUN chmod +x start.sh
 EXPOSE 8080
-CMD gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+ENTRYPOINT ["./start.sh"]
