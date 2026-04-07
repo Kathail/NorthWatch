@@ -7,5 +7,4 @@ instance/
 *.db
 .git/
 .claude/
-app/static/dist/
 frontend/node_modules/
