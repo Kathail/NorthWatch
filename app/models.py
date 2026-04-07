@@ -5,6 +5,10 @@ from app.extensions import db
 
 class RoadCondition(db.Model):
     __tablename__ = "road_conditions"
+    __table_args__ = (
+        db.Index("idx_road_region", "region"),
+        db.Index("idx_road_highway", "highway"),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     highway = db.Column(db.String(20), nullable=False)
@@ -34,6 +38,10 @@ class RoadCondition(db.Model):
 
 class PowerOutage(db.Model):
     __tablename__ = "power_outages"
+    __table_args__ = (
+        db.Index("idx_power_status", "status"),
+        db.Index("idx_power_utility", "utility"),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     utility = db.Column(db.String(50), nullable=False)
@@ -69,6 +77,10 @@ class PowerOutage(db.Model):
 
 class WeatherAlert(db.Model):
     __tablename__ = "weather_alerts"
+    __table_args__ = (
+        db.Index("idx_weather_region", "region"),
+        db.Index("idx_weather_severity", "severity"),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     region = db.Column(db.String(100), nullable=False)
@@ -100,6 +112,10 @@ class WeatherAlert(db.Model):
 
 class FetchLog(db.Model):
     __tablename__ = "fetch_logs"
+    __table_args__ = (
+        db.Index("idx_fetchlog_source", "source"),
+        db.Index("idx_fetchlog_fetched_at", "fetched_at"),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     source = db.Column(db.String(50), nullable=False)

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 import requests
@@ -8,13 +9,15 @@ from app.models import FetchLog, WeatherAlert
 WEATHER_API_URL = "https://api.weather.gc.ca/collections/alerts/items"
 
 NORTHERN_ONTARIO_KEYWORDS = [
-    "Sudbury", "Timmins", "Sault Ste. Marie", "North Bay",
-    "Kapuskasing", "Cochrane", "Parry Sound", "Manitoulin",
-    "Espanola", "Elliot Lake", "Kirkland Lake", "Temiskaming",
-    "Nipissing", "Algoma", "Thunder Bay", "Kenora",
-    "Rainy River", "Hearst", "Wawa", "White River",
-    "Marathon", "Geraldton",
+    "sudbury", "timmins", "sault ste. marie", "north bay",
+    "kapuskasing", "cochrane", "parry sound", "manitoulin",
+    "espanola", "elliot lake", "kirkland lake", "temiskaming",
+    "nipissing", "algoma", "thunder bay", "kenora",
+    "rainy river", "hearst", "wawa", "white river",
+    "marathon", "geraldton",
 ]
+
+NORTHERN_RE = re.compile("|".join(NORTHERN_ONTARIO_KEYWORDS), re.IGNORECASE)
 
 SEVERITY_MAP = {
     "Extreme": "red",
@@ -31,11 +34,6 @@ def parse_datetime(dt_string):
         return datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
-
-
-def is_northern_ontario(text):
-    text_lower = text.lower()
-    return any(kw.lower() in text_lower for kw in NORTHERN_ONTARIO_KEYWORDS)
 
 
 def fetch_weather_alerts():
@@ -58,7 +56,7 @@ def fetch_weather_alerts():
         return []
 
     now = datetime.now(timezone.utc)
-    alerts = []
+    records = []
     features = data.get("features", [])
 
     for feature in features:
@@ -66,7 +64,7 @@ def fetch_weather_alerts():
         title = props.get("headline", props.get("event", ""))
         area = props.get("area", "")
 
-        if not is_northern_ontario(title) and not is_northern_ontario(area):
+        if not NORTHERN_RE.search(title) and not NORTHERN_RE.search(area):
             continue
 
         alert_type_raw = props.get("type", "alert").lower()
@@ -88,7 +86,7 @@ def fetch_weather_alerts():
         if not issued_at:
             issued_at = now
 
-        alerts.append(
+        records.append(
             WeatherAlert(
                 region=area or title,
                 alert_type=alert_type,
@@ -101,12 +99,19 @@ def fetch_weather_alerts():
             )
         )
 
-    db.session.query(WeatherAlert).delete()
-    for record in alerts:
-        db.session.add(record)
-    db.session.add(
-        FetchLog(source="weather", status="success", records_count=len(alerts))
-    )
-    db.session.commit()
+    try:
+        db.session.query(WeatherAlert).delete()
+        db.session.bulk_save_objects(records)
+        db.session.add(
+            FetchLog(source="weather", status="success", records_count=len(records))
+        )
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        db.session.add(
+            FetchLog(source="weather", status="error", error_message=str(e))
+        )
+        db.session.commit()
+        return []
 
-    return alerts
+    return records

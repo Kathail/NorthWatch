@@ -8,15 +8,9 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import L from "leaflet";
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 import { decodePolyline } from "../utils/polyline";
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 
 const HAZARD_RE = /snow|ice|packed|covered|closed/i;
 const WET_RE = /bare\s+and\s+wet/i;
@@ -80,6 +74,7 @@ function TileSwapper({ dark }) {
 function RoadLines({ roads }) {
   const [zoom, setZoom] = useState(6);
   const map = useMap();
+  const polylineCache = useRef(new Map());
 
   useEffect(() => {
     setZoom(map.getZoom());
@@ -89,6 +84,22 @@ function RoadLines({ roads }) {
     zoomend: (e) => setZoom(e.target.getZoom()),
   });
 
+  const decoded = useMemo(() => {
+    const cache = polylineCache.current;
+    const result = new Map();
+    roads.forEach((road) => {
+      if (!road.encoded_polyline) return;
+      if (cache.has(road.id)) {
+        result.set(road.id, cache.get(road.id));
+      } else {
+        const pts = decodePolyline(road.encoded_polyline);
+        cache.set(road.id, pts);
+        result.set(road.id, pts);
+      }
+    });
+    return result;
+  }, [roads]);
+
   return roads
     .filter((road) => {
       if (!road.encoded_polyline) return false;
@@ -96,7 +107,7 @@ function RoadLines({ roads }) {
       return true;
     })
     .map((road) => {
-      const positions = decodePolyline(road.encoded_polyline);
+      const positions = decoded.get(road.id);
       if (positions.length === 0) return null;
       const named = isNamedRoad(road.highway);
       const minor = !isMajorHighway(road.highway);

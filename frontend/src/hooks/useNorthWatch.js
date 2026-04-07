@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const REFRESH_INTERVAL = 120000;
+const REFRESH_JITTER = 10000;
 const TICK_INTERVAL = 60000;
 
 async function fetchJSON(url) {
@@ -20,8 +21,12 @@ export function useNorthWatch() {
   const [toast, setToast] = useState(null);
   const prev = useRef({ status: null, roads: [], outages: [], weather: [] });
   const hasLoaded = useRef(false);
+  const refreshing = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
+
     try {
       const [s, r, o, w] = await Promise.all([
         fetchJSON("/api/v1/status"),
@@ -50,18 +55,22 @@ export function useNorthWatch() {
       prev.current = { status: s, roads: r, outages: o, weather: w };
       hasLoaded.current = true;
     } catch {
-      setStatus(prev.current.status);
-      setRoads(prev.current.roads);
-      setOutages(prev.current.outages);
-      setWeather(prev.current.weather);
+      if (prev.current.status) {
+        setStatus(prev.current.status);
+        setRoads(prev.current.roads);
+        setOutages(prev.current.outages);
+        setWeather(prev.current.weather);
+      }
     } finally {
       setLoading(false);
+      refreshing.current = false;
     }
   }, []);
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, REFRESH_INTERVAL);
+    const jitter = Math.random() * REFRESH_JITTER;
+    const id = setInterval(refresh, REFRESH_INTERVAL + jitter);
     return () => clearInterval(id);
   }, [refresh]);
 

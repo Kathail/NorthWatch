@@ -1,8 +1,14 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 
+JOB_DEFAULTS = {
+    "max_instances": 1,
+    "coalesce": True,
+    "misfire_grace_time": 120,
+}
+
 
 def init_scheduler(app):
-    scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler(job_defaults=JOB_DEFAULTS)
 
     def run_with_context(func):
         def wrapper():

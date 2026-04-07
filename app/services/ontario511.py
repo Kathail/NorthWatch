@@ -26,7 +26,7 @@ def fetch_road_conditions():
         return []
 
     now = datetime.now(timezone.utc)
-    conditions = []
+    records = []
 
     for item in data:
         raw_region = item.get("Region", "")
@@ -38,7 +38,7 @@ def fetch_road_conditions():
         if isinstance(raw_condition, list):
             raw_condition = ", ".join(raw_condition)
 
-        conditions.append(
+        records.append(
             RoadCondition(
                 highway=item.get("RoadwayName", "Unknown").strip(),
                 location_description=item.get("LocationDescription", ""),
@@ -51,14 +51,26 @@ def fetch_road_conditions():
             )
         )
 
-    db.session.query(RoadCondition).delete()
-    for record in conditions:
-        db.session.add(record)
-    db.session.add(
-        FetchLog(
-            source="ontario511", status="success", records_count=len(conditions)
+    if not records:
+        db.session.add(
+            FetchLog(source="ontario511", status="success", records_count=0)
         )
-    )
-    db.session.commit()
+        db.session.commit()
+        return []
 
-    return conditions
+    try:
+        db.session.query(RoadCondition).delete()
+        db.session.bulk_save_objects(records)
+        db.session.add(
+            FetchLog(source="ontario511", status="success", records_count=len(records))
+        )
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        db.session.add(
+            FetchLog(source="ontario511", status="error", error_message=str(e))
+        )
+        db.session.commit()
+        return []
+
+    return records

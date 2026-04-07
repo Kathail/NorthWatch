@@ -7,6 +7,7 @@ export default defineConfig({
   build: {
     outDir: "../app/static/dist",
     emptyOutDir: true,
+    sourcemap: false,
   },
   server: {
     proxy: {

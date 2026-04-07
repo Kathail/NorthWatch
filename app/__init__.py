@@ -1,7 +1,10 @@
 from flask import Flask
+from flask_compress import Compress
 
 from app.config import Config
 from app.extensions import db
+
+compress = Compress()
 
 
 def create_app():
@@ -9,6 +12,7 @@ def create_app():
     app.config.from_object(Config())
 
     db.init_app(app)
+    compress.init_app(app)
 
     from app.routes.api import api_bp
     from app.routes.main import main_bp
