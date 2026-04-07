@@ -8,7 +8,12 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["cd frontend && npm run build"]
+cmds = [
+  "cd frontend && npm run build",
+  "ls -la app/static/dist/ || echo 'dist not found at app/static/dist'",
+  "ls -la frontend/../app/static/dist/ || echo 'dist not found at frontend/../app/static/dist'",
+  "find / -name 'index.html' -path '*/dist/*' 2>/dev/null || echo 'no dist index.html found'",
+]
 
 [start]
 cmd = "gunicorn 'app:create_app()' --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120"
